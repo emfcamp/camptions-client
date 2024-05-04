@@ -119,7 +119,7 @@ class Client:
                     ts = self.client_start + timedelta(seconds=float(seg["start"]))
                     self.queue.put(
                         {
-                            "type": "segment",
+                            "event": "segment",
                             "timestamp": ts.isoformat(),
                             "text": seg["text"],
                         }
@@ -135,7 +135,7 @@ class Client:
         ts = self.client_start + timedelta(seconds=float(self.last_segment["start"]))
         self.queue.put(
             {
-                "type": "latest",
+                "event": "latest",
                 "timestamp": ts.isoformat(),
                 "text": self.last_segment["text"],
             }

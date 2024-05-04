@@ -1,3 +1,4 @@
 PyAudio
 numpy
 websocket-client
+python-socketio[client]
