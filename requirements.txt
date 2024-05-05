@@ -1,3 +1,4 @@
+iotnode
 PyAudio
 numpy
 websocket-client

@@ -1,34 +1,29 @@
 import configparser
-from whisper import Client, TranscriptionTeeClient
-from backend import Service
-from manager import QueueManager
-from queue import Queue
+from iotnode.controller import Controller
+import logging
 
-queue = Queue()
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(processName)s %(message)s"
+)
+
 
 config = configparser.ConfigParser()
 config.read("config.ini")
 
-# Start camptions backend websocket service
-backend_service = Service(
-    host=config["backend"]["host"],
-    port=config["backend"]["port"],
-    location=config["backend"]["location"],
-)
+modules = [
+    ("BackendModule", "backend"),
+    ("WhisperModule", "whisper"),
+    ("RecordModule", "whisper"),
+]
 
-# Start transcription server websocket service
-caption_client = Client(
-    host=config["server"]["host"],
-    port=config["server"]["port"],
-    queue=queue,
-    lang="en",
-    translate=False,
-    model="small",
-    use_vad=True,
-)
 
-# Start queue manager thread
-QueueManager(queue=queue, backend=backend_service)
+class Client(Controller):
+    def __init__(self, *args, **kwargs):
+        self.cache["config"] = config
+        super(Client, self).__init__(*args, **kwargs)
 
-# Start main thread to record from microphone
-TranscriptionTeeClient([caption_client])()
+
+if __name__ == "__main__":
+    node = Client(modules)
+    node.start()
