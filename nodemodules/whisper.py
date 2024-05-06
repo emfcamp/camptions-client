@@ -9,6 +9,7 @@ import numpy as np
 import pyaudio
 import json
 import websocket
+import threading
 import uuid
 import time
 import logging
@@ -27,6 +28,7 @@ class WhisperModule(NodeModule):
         self.task = "transcribe"
         self.use_vad = True
         self.client_start = datetime.now()
+        self.connected = True
 
         self.last_segment = None
         self.last_received_segment = None
@@ -41,19 +43,24 @@ class WhisperModule(NodeModule):
         self.client_socket = websocket.WebSocketApp(
             socket_url,
             on_open=lambda ws: self.on_open(ws),
+            on_close=lambda ws, close_status_code, close_msg: self.on_close(
+                ws, close_status_code, close_msg
+            ),
             on_message=lambda ws, message: self.on_message(ws, message),
         )
-
-    def tick(self):
-        self.client_socket.read()
+        self.connected = True
+        self.sockthread = threading.Thread(target=self.client_socket.run_forever)
+        self.sockthread.setDaemon(True)
+        self.sockthread.start()
 
     def cleanup(self):
-        if self.client_socket:
-            self.client_socket.close()
+        self.client_socket.close()
 
     def callback_audio(self, data):
-        logging.info("sending audio packet")
-        self.client_socket.send(data, websocket.ABNF.OPCODE_BINARY)
+        if self.connected:
+            self.client_socket.send(
+                data["data"].tobytes(), websocket.ABNF.OPCODE_BINARY
+            )
 
     def handle_status_messages(self, message_data):
         """Handles server status messages."""
@@ -83,14 +90,16 @@ class WhisperModule(NodeModule):
                     self.transcript.append(seg)
 
                     ts = self.client_start + timedelta(seconds=float(seg["start"]))
-                    self.queue.put(
+                    self.push(
                         {
-                            "event": "segment",
-                            "timestamp": ts.isoformat(),
-                            "text": seg["text"],
+                            "type": "transcription",
+                            "data": {
+                                "event": "segment",
+                                "timestamp": ts.isoformat(),
+                                "text": seg["text"],
+                            },
                         }
                     )
-        # update last received segment and last valid response time
         if (
             self.last_received_segment is None
             or self.last_received_segment != segments[-1]["text"]
@@ -156,6 +165,10 @@ class WhisperModule(NodeModule):
             )
         )
 
+    def on_close(self, ws, close_status_code, close_msg):
+        logging.info("Server connection closed.")
+        self.connected = False
+
 
 class RecordModule(NodeModule):
 
@@ -185,7 +198,7 @@ class RecordModule(NodeModule):
     def tick(self):
         data = self.stream.read(self.chunk, exception_on_overflow=False)
         audio_array = self.bytes_to_float_array(data)
-        self.push({"type": "audio", "data": audio_array.tobytes()})
+        self.push({"type": "audio", "data": audio_array})
 
     def cleanup(self):
         self.stream.stop_stream()

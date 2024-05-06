@@ -18,6 +18,6 @@ class BackendModule(NodeModule):
         self.client_socket.disconnect()
 
     def callback_transcription(self, data):
-        data["location"] = self.location
-        logging.info(data)
-        self.client_socket.emit("transcription`", json.dumps(data))
+        data["data"]["location"] = self.cache["config"]["backend"]["location"]
+        logging.info(data["data"])
+        self.client_socket.emit("transcription", json.dumps(data["data"]))
