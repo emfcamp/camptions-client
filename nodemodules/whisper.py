@@ -20,20 +20,20 @@ class WhisperModule(NodeModule):
     INSTANCES = {}
 
     def __init__(self, *args, **kwargs):
+        super(WhisperModule, self).__init__(*args, **kwargs)
+
         self.uid = str(uuid.uuid4())
         WhisperModule.INSTANCES[self.uid] = self
         self.language = "en"
         self.translate = False
-        self.model = "small"
+        self.model = self.cache["config"]["server"]["model"]
         self.task = "transcribe"
         self.use_vad = True
         self.client_start = datetime.now()
         self.connected = True
-
         self.last_segment = None
         self.last_received_segment = None
 
-        super(WhisperModule, self).__init__(*args, **kwargs)
         self.connect()
 
     def connect(self):

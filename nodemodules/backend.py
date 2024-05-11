@@ -12,7 +12,7 @@ class BackendModule(NodeModule):
     def connect(self):
         config = self.cache["config"]["backend"]
         self.client_socket = socketio.Client()
-        self.client_socket.connect(f"http://{config['host']}:{config['port']}")
+        self.client_socket.connect(f"{config['host']}:{config['port']}")
 
     def cleanup(self):
         self.client_socket.disconnect()
