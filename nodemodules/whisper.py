@@ -55,6 +55,7 @@ class WhisperModule(NodeModule):
 
     def cleanup(self):
         self.client_socket.close()
+        exit()
 
     def callback_audio(self, data):
         if self.connected:
@@ -164,10 +165,13 @@ class WhisperModule(NodeModule):
                 }
             )
         )
+        self.push({"type": "server_status", "data": "connected"})
 
     def on_close(self, ws, close_status_code, close_msg):
         logging.info("Server connection closed.")
+        self.push({"type": "server_status", "data": "disconnected"})
         self.connected = False
+        self.cleanup()
 
 
 class RecordModule(NodeModule):
