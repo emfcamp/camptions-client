@@ -172,6 +172,8 @@ class WhisperModule(NodeModule):
         self.push({"type": "server_status", "data": "disconnected"})
         self.connected = False
         self.cleanup()
+        self.state = "S"
+        exit()
 
 
 class RecordModule(NodeModule):
