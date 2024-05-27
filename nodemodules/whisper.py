@@ -30,7 +30,7 @@ class WhisperModule(NodeModule):
         self.task = "transcribe"
         self.use_vad = True
         self.client_start = datetime.now()
-        self.connected = True
+        self.connected = False
         self.last_segment = None
         self.last_received_segment = None
 
@@ -43,19 +43,18 @@ class WhisperModule(NodeModule):
         self.client_socket = websocket.WebSocketApp(
             socket_url,
             on_open=lambda ws: self.on_open(ws),
-            on_close=lambda ws, close_status_code, close_msg: self.on_close(
-                ws, close_status_code, close_msg
-            ),
+            on_reconnect=lambda ws: self.on_open(ws),
+            on_close=lambda ws, s, m: self.on_close(ws),
+            on_error=lambda ws, e: self.on_close(ws),
             on_message=lambda ws, message: self.on_message(ws, message),
         )
-        self.connected = True
-        self.sockthread = threading.Thread(target=self.client_socket.run_forever)
+        self.sockthread = threading.Thread(target=self.client_socket.run_forever, kwargs={'reconnect': 3})
+        self.sockthread.name = 'ServerWebSocket'
         self.sockthread.setDaemon(True)
         self.sockthread.start()
 
     def cleanup(self):
         self.client_socket.close()
-        exit()
 
     def callback_audio(self, data):
         if self.connected:
@@ -154,6 +153,7 @@ class WhisperModule(NodeModule):
             self.process_segments(message["segments"])
 
     def on_open(self, ws):
+        self.connected = True
         ws.send(
             json.dumps(
                 {
@@ -167,13 +167,10 @@ class WhisperModule(NodeModule):
         )
         self.push({"type": "server_status", "data": "connected"})
 
-    def on_close(self, ws, close_status_code, close_msg):
-        logging.info("Server connection closed.")
-        self.push({"type": "server_status", "data": "disconnected"})
+    def on_close(self, ws):
         self.connected = False
+        self.push({"type": "server_status", "data": "disconnected"})
         self.cleanup()
-        self.state = "S"
-        exit()
 
 
 class RecordModule(NodeModule):
@@ -210,6 +207,7 @@ class RecordModule(NodeModule):
         self.stream.stop_stream()
         self.stream.close()
         self.p.terminate()
+        exit()
 
     @staticmethod
     def bytes_to_float_array(audio_bytes):

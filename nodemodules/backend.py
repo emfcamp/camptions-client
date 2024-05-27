@@ -13,10 +13,15 @@ class BackendModule(NodeModule):
     def connect(self):
         config = self.cache["config"]["backend"]
         self.client_socket = socketio.Client()
-        self.client_socket.connect(f"{config['host']}:{config['port']}")
+        self.client_socket.connect(
+            f"{config['host']}:{config['port']}",
+            auth={"token": config['token']},
+            retry=True,
+        )
 
     def cleanup(self):
         self.client_socket.disconnect()
+        exit()
 
     def callback_transcription(self, data):
         data["data"]["location"] = self.cache["config"]["backend"]["location"]
@@ -24,17 +29,18 @@ class BackendModule(NodeModule):
         self.client_socket.emit("transcription", json.dumps(data["data"]))
 
     def callback_server_status(self, data):
-        info = (
-            {
-                "location": self.cache["config"]["backend"]["location"],
-                "status": data["data"],
-            },
-        )
-        self.client_socket.emit("server", info)
-        print(info)
+        if self.client_socket.connected:
+            info = (
+                {
+                    "location": self.cache["config"]["backend"]["location"],
+                    "status": data["data"],
+                },
+            )
+            self.client_socket.emit("server", info)
 
     def tick(self):
-        self.client_socket.emit(
-            "heartbeat", {"location": self.cache["config"]["backend"]["location"]}
-        )
-        time.sleep(5)
+        if self.client_socket.connected:
+            self.client_socket.emit(
+                "heartbeat", {"location": self.cache["config"]["backend"]["location"]}
+            )
+            time.sleep(5)

@@ -4,7 +4,7 @@ import logging
 
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(processName)s %(message)s"
+    level=logging.INFO, format="%(asctime)s %(threadName)s %(message)s"
 )
 
 
