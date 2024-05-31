@@ -48,7 +48,7 @@ class WhisperModule(NodeModule):
             on_error=lambda ws, e: self.on_error(ws),
             on_message=lambda ws, message: self.on_message(ws, message),
         )
-        self.sockthread = threading.Thread(target=self.thread_func)
+        self.sockthread = threading.Thread(target=self.thread_function)
         self.sockthread.name = 'ServerWebSocket'
         self.sockthread.setDaemon(True)
         self.sockthread.start()
@@ -56,6 +56,7 @@ class WhisperModule(NodeModule):
     def thread_function(self):
         while True:
             self.client_socket.run_forever();
+            time.sleep(2)
 
     def cleanup(self):
         self.client_socket.close()
