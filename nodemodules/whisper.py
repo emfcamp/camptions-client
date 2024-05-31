@@ -45,13 +45,17 @@ class WhisperModule(NodeModule):
             on_open=lambda ws: self.on_open(ws),
             on_reconnect=lambda ws: self.on_open(ws),
             on_close=lambda ws, s, m: self.on_close(ws),
-            on_error=lambda ws, e: self.on_close(ws),
+            on_error=lambda ws, e: self.on_error(ws),
             on_message=lambda ws, message: self.on_message(ws, message),
         )
-        self.sockthread = threading.Thread(target=self.client_socket.run_forever, kwargs={'reconnect': 3})
+        self.sockthread = threading.Thread(target=self.thread_func)
         self.sockthread.name = 'ServerWebSocket'
         self.sockthread.setDaemon(True)
         self.sockthread.start()
+
+    def thread_function(self):
+        while True:
+            self.client_socket.run_forever();
 
     def cleanup(self):
         self.client_socket.close()
@@ -151,6 +155,9 @@ class WhisperModule(NodeModule):
 
         if "segments" in message.keys():
             self.process_segments(message["segments"])
+
+    def on_error(self,ws):
+        logging.error(f"An error has occured")
 
     def on_open(self, ws):
         self.connected = True
