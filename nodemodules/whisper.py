@@ -80,38 +80,38 @@ class WhisperModule(NodeModule):
         elif status == "WARNING":
             logging.error(f"Message from Server: {message_data['message']}")
 
-    def process_segments(self, segments):
-        self.last_segment = segments.pop()
-        for seg in segments:
-            if seg["start"] not in self.transcript:
-                self.transcript.append(seg["start"])
-
-                ts = self.client_start + timedelta(seconds=float(seg["start"]))
-                self.push(
-                    {
-                        "type": "transcription",
-                        "data": {
-                            "event": "segment",
-                            "timestamp": ts.isoformat(),
-                            "text": seg["text"],
-                        },
-                    }
-                )
-
-        ts = self.client_start + timedelta(seconds=float(self.last_segment["start"]))
+    def push_segment(self, seg, event="segment"):
+        ts = self.client_start + timedelta(seconds=float(seg["start"]))
         self.push(
             {
                 "type": "transcription",
                 "data": {
-                    "event": "latest",
+                    "event": event,
                     "timestamp": ts.isoformat(),
-                    "text": self.last_segment["text"],
+                    "text": seg["text"],
                 },
             }
         )
 
+    def process_segments(self, segments):
+        print(segments)
+        latest_segment = segments.pop()
+
+        for seg in segments:
+            if seg["start"] not in self.transcript:
+                self.transcript.append(seg["start"])
+                self.push_segment(seg)
+
+        if self.last_segment and latest_segment:
+            if float(latest_segment["start"]) > float(self.last_segment["start"]) + 2.5:
+                self.push_segment(self.last_segment)
+
+        self.last_segment = latest_segment
+
+        self.push_segment(latest_segment, "latest")
+
         self.transcript = self.transcript[-20:]
-        #print(self.transcript)
+        print(self.transcript)
 
     def on_message(self, ws, message):
         message = json.loads(message)
