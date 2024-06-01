@@ -32,7 +32,8 @@ class WhisperModule(NodeModule):
         self.client_start = datetime.now()
         self.connected = False
         self.last_segment = None
-        self.pushed = []
+        self.last_received_segment = None
+        self.transcript = []
 
         self.connect()
 
@@ -81,34 +82,42 @@ class WhisperModule(NodeModule):
 
     def process_segments(self, segments):
         """Processes transcript segments."""
-        self.last_segment = segments.pop()
-        for seg in segments:
-            if seg["start"] not in self.pushed:
-                self.pushed.append(seg["start"])
+        text = []
+        for i, seg in enumerate(segments):
+            if not text or text[-1] != seg["text"]:
+                text.append(seg["text"])
+                if i == len(segments) - 1:
+                    self.last_segment = seg
+                elif (self.server_backend == "faster_whisper" and
+                      (not self.transcript or
+                        float(seg['start']) >= float(self.transcript[-1]['end']))):
 
-                ts = self.client_start + timedelta(seconds=float(seg["start"]))
-                self.push(
-                    {
-                        "type": "transcription",
-                        "data": {
-                            "event": "segment",
-                            "timestamp": ts.isoformat(),
-                            "text": seg["text"],
-                        },
-                    }
-                )
+                    ts = self.client_start + timedelta(seconds=float(seg["start"]))
+                    self.push(
+                        {
+                            "type": "transcription",
+                            "data": {
+                                "event": "segment",
+                                "timestamp": ts.isoformat(),
+                                "text": seg["text"],
+                            },
+                        }
+                    )
+        # update last received segment and last valid response time
+        if self.last_received_segment is None or self.last_received_segment != segments[-1]["text"]:
+            self.last_received_segment = segments[-1]["text"]
 
-        ts = self.client_start + timedelta(seconds=float(self.last_segment["start"]))
-        self.push(
-            {
-                "type": "transcription",
-                "data": {
-                    "event": "latest",
-                    "timestamp": ts.isoformat(),
-                    "text": self.last_segment["text"],
-                },
-            }
-        )
+            ts = self.client_start + timedelta(seconds=float(self.last_segment["start"]))
+            self.push(
+                {
+                    "type": "transcription",
+                    "data": {
+                        "event": "latest",
+                        "timestamp": ts.isoformat(),
+                        "text": self.last_segment["text"],
+                    },
+                }
+            )
 
     def on_message(self, ws, message):
         message = json.loads(message)
