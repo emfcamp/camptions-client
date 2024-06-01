@@ -43,4 +43,4 @@ class BackendModule(NodeModule):
             self.client_socket.emit(
                 "heartbeat", {"location": self.cache["config"]["backend"]["location"]}
             )
-            time.sleep(5)
+            time.sleep(0.1)

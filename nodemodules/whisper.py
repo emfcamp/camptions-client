@@ -49,14 +49,14 @@ class WhisperModule(NodeModule):
             on_message=lambda ws, message: self.on_message(ws, message),
         )
         self.sockthread = threading.Thread(target=self.thread_function)
-        self.sockthread.name = 'ServerWebSocket'
+        self.sockthread.name = "ServerWebSocket"
         self.sockthread.setDaemon(True)
         self.sockthread.start()
 
     def thread_function(self):
         while True:
             self.client_socket.run_forever()
-            time.sleep(2)
+            time.sleep(0.1)
 
     def cleanup(self):
         self.client_socket.close()
@@ -81,43 +81,36 @@ class WhisperModule(NodeModule):
             logging.error(f"Message from Server: {message_data['message']}")
 
     def process_segments(self, segments):
-        """Processes transcript segments."""
-        text = []
-        for i, seg in enumerate(segments):
-            if not text or text[-1] != seg["text"]:
-                text.append(seg["text"])
-                if i == len(segments) - 1:
-                    self.last_segment = seg
-                elif (self.server_backend == "faster_whisper" and
-                      (not self.transcript or
-                        float(seg['start']) >= float(self.transcript[-1]['end']))):
+        print(segments)
 
-                    ts = self.client_start + timedelta(seconds=float(seg["start"]))
-                    self.push(
-                        {
-                            "type": "transcription",
-                            "data": {
-                                "event": "segment",
-                                "timestamp": ts.isoformat(),
-                                "text": seg["text"],
-                            },
-                        }
-                    )
-        # update last received segment and last valid response time
-        if self.last_received_segment is None or self.last_received_segment != segments[-1]["text"]:
-            self.last_received_segment = segments[-1]["text"]
+        self.last_segment = segments.pop()
+        for seg in segments:
+            if seg["start"] not in self.transcript:
+                self.transcript.append(seg["start"])
 
-            ts = self.client_start + timedelta(seconds=float(self.last_segment["start"]))
-            self.push(
-                {
-                    "type": "transcription",
-                    "data": {
-                        "event": "latest",
-                        "timestamp": ts.isoformat(),
-                        "text": self.last_segment["text"],
-                    },
-                }
-            )
+                ts = self.client_start + timedelta(seconds=float(seg["start"]))
+                self.push(
+                    {
+                        "type": "transcription",
+                        "data": {
+                            "event": "segment",
+                            "timestamp": ts.isoformat(),
+                            "text": seg["text"],
+                        },
+                    }
+                )
+
+        ts = self.client_start + timedelta(seconds=float(self.last_segment["start"]))
+        self.push(
+            {
+                "type": "transcription",
+                "data": {
+                    "event": "latest",
+                    "timestamp": ts.isoformat(),
+                    "text": self.last_segment["text"],
+                },
+            }
+        )
 
     def on_message(self, ws, message):
         message = json.loads(message)
@@ -152,7 +145,7 @@ class WhisperModule(NodeModule):
         if "segments" in message.keys():
             self.process_segments(message["segments"])
 
-    def on_error(self,ws):
+    def on_error(self, ws):
         logging.error(f"An error has occured")
 
     def on_open(self, ws):
