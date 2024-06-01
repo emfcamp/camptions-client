@@ -81,8 +81,6 @@ class WhisperModule(NodeModule):
             logging.error(f"Message from Server: {message_data['message']}")
 
     def process_segments(self, segments):
-        print(segments)
-
         self.last_segment = segments.pop()
         for seg in segments:
             if seg["start"] not in self.transcript:
@@ -111,6 +109,9 @@ class WhisperModule(NodeModule):
                 },
             }
         )
+
+        self.transcript = self.transcript[-20:]
+        #print(self.transcript)
 
     def on_message(self, ws, message):
         message = json.loads(message)
