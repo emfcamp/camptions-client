@@ -32,12 +32,11 @@ class WhisperModule(NodeModule):
         self.client_start = datetime.now()
         self.connected = False
         self.last_segment = None
-        self.last_received_segment = None
+        self.pushed = []
 
         self.connect()
 
     def connect(self):
-        self.transcript = []
         config = self.cache["config"]["server"]
         socket_url = f"ws://{config['host']}:{config['port']}"
         self.client_socket = websocket.WebSocketApp(
@@ -55,7 +54,7 @@ class WhisperModule(NodeModule):
 
     def thread_function(self):
         while True:
-            self.client_socket.run_forever();
+            self.client_socket.run_forever()
             time.sleep(2)
 
     def cleanup(self):
@@ -82,35 +81,22 @@ class WhisperModule(NodeModule):
 
     def process_segments(self, segments):
         """Processes transcript segments."""
-        text = []
-        for i, seg in enumerate(segments):
-            if not text or text[-1] != seg["text"]:
-                text.append(seg["text"])
-                if i == len(segments) - 1:
-                    self.last_segment = seg
-                elif self.server_backend == "faster_whisper" and (
-                    not self.transcript
-                    or float(seg["start"]) >= float(self.transcript[-1]["end"])
-                ):
-                    self.transcript.append(seg)
+        self.last_segment = segments.pop()
+        for seg in segments:
+            if seg["start"] not in self.pushed:
+                self.pushed.append(seg["start"])
 
-                    ts = self.client_start + timedelta(seconds=float(seg["start"]))
-                    self.push(
-                        {
-                            "type": "transcription",
-                            "data": {
-                                "event": "segment",
-                                "timestamp": ts.isoformat(),
-                                "text": seg["text"],
-                            },
-                        }
-                    )
-        if (
-            self.last_received_segment is None
-            or self.last_received_segment != segments[-1]["text"]
-        ):
-            self.last_response_received = time.time()
-            self.last_received_segment = segments[-1]["text"]
+                ts = self.client_start + timedelta(seconds=float(seg["start"]))
+                self.push(
+                    {
+                        "type": "transcription",
+                        "data": {
+                            "event": "segment",
+                            "timestamp": ts.isoformat(),
+                            "text": seg["text"],
+                        },
+                    }
+                )
 
         ts = self.client_start + timedelta(seconds=float(self.last_segment["start"]))
         self.push(
@@ -138,9 +124,9 @@ class WhisperModule(NodeModule):
         if "message" in message.keys() and message["message"] == "DISCONNECT":
             logging.info("Server disconnected due to overtime.")
             self.recording = False
+            self.cleanup()
 
         if "message" in message.keys() and message["message"] == "SERVER_READY":
-            self.last_response_received = time.time()
             self.recording = True
             self.server_backend = message["backend"]
             logging.info(f"Server Running with backend {self.server_backend}")
